@@ -12,7 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { db } from "@/lib/firebase"
+import { db, trackActivity } from "@/lib/firebase"
 import { collection, getDocs, doc, deleteDoc } from "firebase/firestore"
 import { useToast } from "@/components/ui/use-toast"
 import { Pencil, Trash } from "lucide-react"
@@ -67,6 +67,14 @@ export default function PagesPage() {
     try {
       if (!db) throw new Error("Firebase is not initialized")
       await deleteDoc(doc(db, "pages", pageId))
+
+      // Track the activity
+      await trackActivity({
+        type: 'page_deleted',
+        pageId,
+        pageTitle: pageId,
+      })
+
       toast({
         title: "Page deleted",
         description: "The page has been deleted successfully",

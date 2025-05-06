@@ -1,6 +1,13 @@
 import { initializeApp, getApps, type FirebaseApp } from "firebase/app"
-import { getFirestore, type Firestore } from "firebase/firestore"
-import { getAuth, type Auth } from "firebase/auth"
+import { getFirestore, type Firestore, collection, addDoc, serverTimestamp } from "firebase/firestore"
+import { 
+  getAuth, 
+  type Auth, 
+  setPersistence, 
+  browserSessionPersistence,
+  onAuthStateChanged,
+  signOut
+} from "firebase/auth"
 
 // Load Firebase configuration from environment variables
 const firebaseConfig = {
@@ -13,16 +20,104 @@ const firebaseConfig = {
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 }
 
-// Initialize Firebase - ensure it's only done on the client side
-let app: FirebaseApp | undefined
-let db: Firestore | undefined
-let auth: Auth | undefined
+// Initialize Firebase only once
+const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig)
+const db = getFirestore(app)
+const auth = getAuth(app)
 
-if (typeof window !== "undefined") {
-  // Only initialize on the client side
-  app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig)
-  db = getFirestore(app)
-  auth = getAuth(app)
+// Set persistence to SESSION (this will keep the user signed in only for the current session)
+setPersistence(auth, browserSessionPersistence)
+  .catch((error) => {
+    console.error("Error setting auth persistence:", error)
+  })
+
+// Session timeout in milliseconds (8 hours)
+const SESSION_TIMEOUT = 8 * 60 * 60 * 1000
+
+// Function to handle session timeout - only runs on client side
+const handleSessionTimeout = () => {
+  // Check if we're on the client side
+  if (typeof window === 'undefined') return
+
+  let timeoutId: NodeJS.Timeout
+
+  const resetTimeout = () => {
+    if (timeoutId) {
+      clearTimeout(timeoutId)
+    }
+    timeoutId = setTimeout(() => {
+      signOut(auth)
+    }, SESSION_TIMEOUT)
+  }
+
+  // Reset timeout on user activity
+  const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart']
+  events.forEach(event => {
+    window.addEventListener(event, resetTimeout)
+  })
+
+  // Initial timeout setup
+  onAuthStateChanged(auth, (user) => {
+    if (user) {
+      resetTimeout()
+    } else {
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+      }
+    }
+  })
+
+  // Cleanup function
+  return () => {
+    if (timeoutId) {
+      clearTimeout(timeoutId)
+    }
+    events.forEach(event => {
+      window.removeEventListener(event, resetTimeout)
+    })
+  }
+}
+
+// Initialize session timeout only on client side
+if (typeof window !== 'undefined') {
+  handleSessionTimeout()
+}
+
+// Activity tracking types
+export type ActivityType = 
+  | 'page_created'
+  | 'page_updated'
+  | 'page_deleted'
+  | 'section_created'
+  | 'section_updated'
+  | 'section_deleted'
+
+export interface Activity {
+  type: ActivityType;
+  pageId: string;
+  pageTitle: string;
+  sectionId?: string;
+  sectionTitle?: string;
+  timestamp: Date;
+  userId: string;
+}
+
+// Function to track activities
+export const trackActivity = async (activity: Omit<Activity, 'timestamp' | 'userId'>) => {
+  try {
+    if (!auth.currentUser) throw new Error("No user logged in")
+    if (!db) throw new Error("Firebase is not initialized")
+
+    const activityData = {
+      ...activity,
+      timestamp: serverTimestamp(),
+      userId: auth.currentUser.uid,
+    }
+
+    await addDoc(collection(db, "activities"), activityData)
+  } catch (error) {
+    console.error("Error tracking activity:", error)
+  }
 }
 
 export { app, db, auth }
