@@ -7,8 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { db } from "@/lib/firebase"
-import type { Firestore } from "firebase/firestore"
+import { db, trackActivity } from "@/lib/firebase"
 import { doc, setDoc } from "firebase/firestore"
 import { useToast } from "@/components/ui/use-toast"
 
@@ -28,10 +27,19 @@ export default function NewPagePage() {
     setLoading(true)
 
     try {
+      if (!db) throw new Error("Firebase is not initialized")
+      
       // Create a new page document with an empty sections map
       const pageRef = doc(db, "pages", pageId)
       await setDoc(pageRef, {
         sections: {}
+      })
+
+      // Track the activity
+      await trackActivity({
+        type: 'page_created',
+        pageId,
+        pageTitle: pageId,
       })
 
       toast({
@@ -39,8 +47,8 @@ export default function NewPagePage() {
         description: "The page has been created successfully",
       })
 
-      // Navigate to the new section form with the page ID
-      router.push(`/dashboard/sections/new?pageId=${pageId}`)
+      // Navigate to the sections page for this specific page
+      router.push(`/dashboard/pages/${pageId}/sections`)
     } catch (error) {
       console.error("Error creating page:", error)
       toast({
@@ -84,7 +92,7 @@ export default function NewPagePage() {
                 Cancel
               </Button>
               <Button type="submit" disabled={loading}>
-                {loading ? "Creating..." : "Create Page & Add Section"}
+                {loading ? "Creating..." : "Create Page"}
               </Button>
             </CardFooter>
           </Card>

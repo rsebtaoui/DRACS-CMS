@@ -12,7 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { db } from "@/lib/firebase"
+import { db, trackActivity } from "@/lib/firebase"
 import { doc, getDoc, updateDoc } from "firebase/firestore"
 import { useToast } from "@/components/ui/use-toast"
 import { Pencil, Trash, Plus } from "lucide-react"
@@ -88,6 +88,14 @@ export default function PageSectionsPage({ params }: { params: any }) {
 
       await updateDoc(pageRef, {
         sections: sectionsData
+      })
+
+      // Track the activity
+      await trackActivity({
+        type: 'section_deleted',
+        pageId: resolvedParams.id,
+        pageTitle: resolvedParams.id,
+        sectionTitle: sectionId,
       })
 
       toast({

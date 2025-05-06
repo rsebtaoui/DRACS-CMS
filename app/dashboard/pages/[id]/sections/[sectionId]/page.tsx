@@ -7,7 +7,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/componen
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { db } from "@/lib/firebase"
+import { db, trackActivity } from "@/lib/firebase"
 import { doc, getDoc, updateDoc } from "firebase/firestore"
 import { useToast } from "@/components/ui/use-toast"
 import { X, Plus } from "lucide-react"
@@ -314,6 +314,15 @@ export default function EditSectionPage({ params }: { params: any }) {
 
       await updateDoc(pageRef, {
         sections: sectionsData
+      })
+
+      // Track the activity
+      await trackActivity({
+        type: 'section_updated',
+        pageId: resolvedParams.id,
+        pageTitle: resolvedParams.id,
+        sectionTitle: newSectionId,
+        oldSectionTitle: newSectionId !== oldSectionId ? oldSectionId : undefined,
       })
 
       toast({
